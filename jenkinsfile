@@ -1,0 +1,188 @@
+/* 
+File Name : Jenkinsfile 
+
+Version : 0.0.1
+
+Purpose : CICD Pipeline for Dev environment
+
+Authors : glenj.monteiro@gmail.com,
+*/
+
+pipeline {
+
+    parameters {
+    hidden(name: 'IMAGE_TAG', defaultValue: '', description: '')
+    hidden(name: 'RELEASE_VERSION', defaultValue: '', description: '')
+    hidden(name: 'SERVICE_NAME', defaultValue: '', description: '')
+    }
+
+    agent any
+
+    environment {
+        docker_creds = credentials('gitlab_credentials')
+    }
+
+    stages {
+        // Code Checkout Stage (Branch Name can be dynamically passed too)
+        stage('Git Checkout Stage') {
+            steps {
+                echo "Repository URL : "+env.REPO_URL
+                echo "Branch Chosen : "+env.BRANCH_NAME
+                checkout scmGit( branches: [[name: env.BRANCH_NAME]], 
+                                             extensions: [], 
+                                             userRemoteConfigs: [[credentialsId: 'gitlab_credentials', url: env.REPO_URL]]
+                )
+            // Extract Relase Version
+                script {
+                    def APP_VERSION = readFile(file: 'app.version')
+                    echo "App Version : "+APP_VERSION
+                    env.RELEASE_VERSION=APP_VERSION
+                    env.RELEASE_VERSION=env.RELEASE_VERSION.trim()
+
+                    def tmp = env.JOB_NAME
+                    env.SERVICE_NAME = tmp
+                    env.SERVICE_NAME = env.SERVICE_NAME.split("_DEV")[0]
+                    echo env.SERVICE_NAME
+                }
+            }
+        }
+
+        // Build Stage segregated by the type of Build opted
+        stage('Image Build Stage') {
+            parallel {
+
+                stage ('Create Tag') {
+                    steps {
+                        echo "Image Registry URL : "+env.REGISTRY_URL
+                        echo "Containerization Method : "+env.BUILD_TYPE
+               
+                        script {
+                            def TAG=env.REGISTRY_URL+":dev-"+env.RELEASE_VERSION
+                            env.IMAGE_TAG=TAG   
+                            env.IMAGE_TAG=env.IMAGE_TAG.trim()
+                            echo env.IMAGE_TAG
+                        }
+                    }
+                }
+                
+                // Building image using Docker Build
+                stage ('Build Tag - Docker') {
+                    when {
+                        expression { env.BUILD_TYPE == 'docker' }
+                    }
+                    steps {
+                        echo "Containerization Method : "+env.BUILD_TYPE
+                        sh "whoami"
+                        script {  
+                            docker.withRegistry('https://spectra-registry.lti-aiq.in:443', 'gitlab_credentials') {
+                                def svcImageBuild = docker.build(env.IMAGE_TAG, ".")
+                                svcImageBuild.push()
+                            }                
+                        }
+                    }
+                }
+                
+                // Building image using Build X
+                stage ('Build Tag - BuildX') {
+                    when {
+                        expression { env.BUILD_TYPE == 'buildx' }
+                    }
+                    steps {
+                        echo "Containerization Method : "+env.BUILD_TYPE
+                        echo "Image Tag : "+env.IMAGE_TAG
+                        sh "whoami"
+                        sh "pwd"
+                        sh "docker buildx inspect --bootstrap"
+                        sh "docker buildx build --tag ${env.IMAGE_TAG} . --load"
+                        script{
+                            docker.withRegistry('https://spectra-registry.lti-aiq.in:443', 'gitlab_credentials') {
+                                def svcImage = docker.image(env.IMAGE_TAG)
+                                svcImage.push()
+                            }
+                        }
+                    }
+                }
+                
+                // Building image using Build Pack
+                stage ('Build Tag - Build Pack') {
+                    when {
+                        expression { env.BUILD_TYPE == 'buildpack' }
+                    }
+                    steps {
+                        echo "Containerization Method :"+env.BUILD_TYPE
+                        sh "whoami"
+                        sh "pwd"
+                        sh "/usr/local/bin/pack build ${env.IMAGE_TAG} --builder paketobuildpacks/builder:0.3.101-base"
+                        script{
+                            docker.withRegistry('https://spectra-registry.lti-aiq.in:443', 'gitlab_credentials') {
+                                def svcImage = docker.image(env.IMAGE_TAG)
+                                svcImage.push()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Replacing Tags and Deploying on Kubernetes Cluster
+        stage ('Deploying to Kubernetes Cluster') {
+            steps {
+                script{
+                    
+                    def RELEASE_NUMBER="dev-"+env.RELEASE_VERSION
+                    RELEASE_NUMBER=RELEASE_NUMBER.trim()
+                    
+                    // Replacing Tags
+                    def layer_1 = readFile("deploy/deployment-dev.yaml").replace('${image_path}', env.REGISTRY_URL)
+                    writeFile file: "temp.yaml", text: layer_1
+
+                    def layer_2 = readFile("temp.yaml").replace('${RELEASE_NUMBER}', RELEASE_NUMBER)
+                    writeFile file: "final_dev.yaml", text: layer_2
+                }
+                
+                // Deploying to K8s cluster
+                withKubeConfig(caCertificate: '', clusterName: 'SpectraDev', contextName: '', credentialsId: 'config (DEV_KUBECONFIG)', namespace: '', restrictKubeConfigAccess: true, serverUrl: 'https://10.196.8.208:6443') {
+                    //sh "kubectl get nodes"
+                    sh "kubectl apply -f final_dev.yaml"
+                }
+            }
+        }
+    }
+
+    post{
+        success{
+            emailext to: env.EMAIL_RECIPIENTS,
+            subject: "${env.JOB_NAME} EXECUTION COMPLETE",
+            body: """Dear User, 
+
+The pipeline triggered for the service: ${env.SERVICE_NAME.split("_")[0]} ${env.SERVICE_NAME.split("_")[1]} has executed successfully.
+Below are the details of the build: 
+
+Branch Triggered:- ${env.BRANCH_NAME}
+
+App Version:- ${env.RELEASE_VERSION}
+
+Image Created:- ${env.IMAGE_TAG}
+
+Please refer to the attached logs for more details
+
+Best Regards,
+<Sender Details>""",
+            attachLog: true
+        }
+
+        failure{
+            emailext to: env.EMAIL_RECIPIENTS,
+            subject: "${env.JOB_NAME} FAILURE",
+            body: """Dear User, 
+
+The pipeline triggered for the service: ${env.SERVICE_NAME.split("_")[0]} ${env.SERVICE_NAME.split("_")[1]} has Failed.
+
+Please refer to the attached logs for more details
+
+Best Regards,
+<Sender Details>""",
+            attachLog: true
+        }
+    }
+}
