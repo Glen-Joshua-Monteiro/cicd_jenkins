@@ -74,7 +74,7 @@ pipeline {
                         echo "Containerization Method : "+env.BUILD_TYPE
                         sh "whoami"
                         script {  
-                            docker.withRegistry('https://spectra-registry.lti-aiq.in:443', 'gitlab_credentials') {
+                            docker.withRegistry(env.REGISTRY_URL, 'docker_credentials') {
                                 def svcImageBuild = docker.build(env.IMAGE_TAG, ".")
                                 svcImageBuild.push()
                             }                
@@ -95,7 +95,7 @@ pipeline {
                         sh "docker buildx inspect --bootstrap"
                         sh "docker buildx build --tag ${env.IMAGE_TAG} . --load"
                         script{
-                            docker.withRegistry('https://spectra-registry.lti-aiq.in:443', 'gitlab_credentials') {
+                            docker.withRegistry(env.REGISTRY_URL, 'docker_credentials') {
                                 def svcImage = docker.image(env.IMAGE_TAG)
                                 svcImage.push()
                             }
@@ -114,7 +114,7 @@ pipeline {
                         sh "pwd"
                         sh "/usr/local/bin/pack build ${env.IMAGE_TAG} --builder paketobuildpacks/builder:0.3.101-base"
                         script{
-                            docker.withRegistry('https://spectra-registry.lti-aiq.in:443', 'gitlab_credentials') {
+                            docker.withRegistry(env.REGISTRY_URL, 'docker_credentials') {
                                 def svcImage = docker.image(env.IMAGE_TAG)
                                 svcImage.push()
                             }
@@ -141,7 +141,7 @@ pipeline {
                 }
                 
                 // Deploying to K8s cluster
-                withKubeConfig(caCertificate: '', clusterName: 'SpectraDev', contextName: '', credentialsId: 'config (DEV_KUBECONFIG)', namespace: '', restrictKubeConfigAccess: true, serverUrl: 'https://10.196.8.208:6443') {
+                withKubeConfig(caCertificate: '', clusterName: '', contextName: '', credentialsId: 'config (KUBECONFIG)', namespace: '', restrictKubeConfigAccess: true, serverUrl: kube-apiserver-details) {
                     //sh "kubectl get nodes"
                     sh "kubectl apply -f final_dev.yaml"
                 }
