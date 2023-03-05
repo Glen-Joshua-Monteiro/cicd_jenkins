@@ -5,7 +5,7 @@ Version : 0.0.1
 
 Purpose : CICD Pipeline for Dev environment
 
-Authors : glenj.monteiro@gmail.com,
+Authors : glenj.monteiro@gmail.com
 */
 
 pipeline {
@@ -133,7 +133,7 @@ pipeline {
                     RELEASE_NUMBER=RELEASE_NUMBER.trim()
                     
                     // Replacing Tags
-                    def layer_1 = readFile("deploy/deployment-dev.yaml").replace('${image_path}', env.REGISTRY_URL)
+                    def layer_1 = readFile("deploy/deployment.yaml").replace('${image_path}', env.REGISTRY_URL)
                     writeFile file: "temp.yaml", text: layer_1
 
                     def layer_2 = readFile("temp.yaml").replace('${RELEASE_NUMBER}', RELEASE_NUMBER)
