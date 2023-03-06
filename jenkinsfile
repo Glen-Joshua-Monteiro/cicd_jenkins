@@ -17,10 +17,6 @@ pipeline {
 
     agent any
 
-    environment {
-        docker_creds = credentials('gitlab_credentials')
-    }
-
     stages {
         // Code Checkout Stage (Branch Name can be dynamically passed too)
         stage('Git Checkout Stage') {
