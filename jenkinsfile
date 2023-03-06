@@ -29,7 +29,7 @@ pipeline {
                 echo "Branch Chosen : "+env.BRANCH_NAME
                 checkout scmGit( branches: [[name: env.BRANCH_NAME]], 
                                              extensions: [], 
-                                             userRemoteConfigs: [[credentialsId: 'gitlab_credentials', url: env.REPO_URL]]
+                                             userRemoteConfigs: [[credentialsId: 'git_credentials', url: env.REPO_URL]]
                 )
             // Extract Relase Version
                 script {
