@@ -33,22 +33,22 @@ Kubectl component of the relevant version and Git utility must be installed on t
 - GitLab/Github token (For Integrating GitLab/Github with the Jenkins)
 
 - GitLab/Github Credentials (In username-password format for git-checkout)
-Name: git_credentials
+  Name: git_credentials
 
 - Registry Credentials (In username-password format for pushing the containerized image)
-Name: docker_credentials
+  Name: docker_credentials
 
 - Kube-Config file (In secret file format for cluster access and authentication )
-Name: KUBECONFIG
+  Name: KUBECONFIG
 
 **Create the following Variables at a Global level**
 ("Manage Jenkins -> Configure System -> Global Properties option -> Add")
 
 - Variable: image_registry
-Value: URL of the image registry
+  Value: URL of the image registry
 
 - Variable: k8s_cluster
-Value: URL of the Kubernetes Cluster
+  Value: URL of the Kubernetes Cluster
 
 **In your pipeline - Add the following string parameters**
 - REPO_URL -> Application Repository URL
