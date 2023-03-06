@@ -3,7 +3,7 @@ File Name : Jenkinsfile
 
 Version : 0.0.1
 
-Purpose : CICD Pipeline for Dev environment
+Purpose : Implementation of automated CICD Pipeline using Jenkins
 
 Authors : glenj.monteiro@gmail.com
 */
@@ -13,7 +13,6 @@ pipeline {
     parameters {
     hidden(name: 'IMAGE_TAG', defaultValue: '', description: '')
     hidden(name: 'RELEASE_VERSION', defaultValue: '', description: '')
-    hidden(name: 'SERVICE_NAME', defaultValue: '', description: '')
     }
 
     agent any
@@ -38,11 +37,6 @@ pipeline {
                     echo "App Version : "+APP_VERSION
                     env.RELEASE_VERSION=APP_VERSION
                     env.RELEASE_VERSION=env.RELEASE_VERSION.trim()
-
-                    def tmp = env.JOB_NAME
-                    env.SERVICE_NAME = tmp
-                    env.SERVICE_NAME = env.SERVICE_NAME.split("_DEV")[0]
-                    echo env.SERVICE_NAME
                 }
             }
         }
@@ -57,7 +51,7 @@ pipeline {
                         echo "Containerization Method : "+env.BUILD_TYPE
                
                         script {
-                            def TAG=env.REGISTRY_URL+":dev-"+env.RELEASE_VERSION
+                            def TAG=env.REGISTRY_URL+":"+env.RELEASE_VERSION
                             env.IMAGE_TAG=TAG   
                             env.IMAGE_TAG=env.IMAGE_TAG.trim()
                             echo env.IMAGE_TAG
@@ -74,7 +68,7 @@ pipeline {
                         echo "Containerization Method : "+env.BUILD_TYPE
                         sh "whoami"
                         script {  
-                            docker.withRegistry(env.REGISTRY_URL, 'docker_credentials') {
+                            docker.withRegistry(env.image_registry, 'docker_credentials') {
                                 def svcImageBuild = docker.build(env.IMAGE_TAG, ".")
                                 svcImageBuild.push()
                             }                
@@ -95,7 +89,7 @@ pipeline {
                         sh "docker buildx inspect --bootstrap"
                         sh "docker buildx build --tag ${env.IMAGE_TAG} . --load"
                         script{
-                            docker.withRegistry(env.REGISTRY_URL, 'docker_credentials') {
+                            docker.withRegistry(env.image_registry, 'docker_credentials') {
                                 def svcImage = docker.image(env.IMAGE_TAG)
                                 svcImage.push()
                             }
@@ -114,7 +108,7 @@ pipeline {
                         sh "pwd"
                         sh "/usr/local/bin/pack build ${env.IMAGE_TAG} --builder paketobuildpacks/builder:0.3.101-base"
                         script{
-                            docker.withRegistry(env.REGISTRY_URL, 'docker_credentials') {
+                            docker.withRegistry(env.image_registry, 'docker_credentials') {
                                 def svcImage = docker.image(env.IMAGE_TAG)
                                 svcImage.push()
                             }
@@ -137,13 +131,12 @@ pipeline {
                     writeFile file: "temp.yaml", text: layer_1
 
                     def layer_2 = readFile("temp.yaml").replace('${RELEASE_NUMBER}', RELEASE_NUMBER)
-                    writeFile file: "final_dev.yaml", text: layer_2
+                    writeFile file: "final.yaml", text: layer_2
                 }
                 
                 // Deploying to K8s cluster
-                withKubeConfig(caCertificate: '', clusterName: '', contextName: '', credentialsId: 'config (KUBECONFIG)', namespace: '', restrictKubeConfigAccess: true, serverUrl: kube-apiserver-details) {
-                    //sh "kubectl get nodes"
-                    sh "kubectl apply -f final_dev.yaml"
+                withKubeConfig(caCertificate: '', clusterName: 'KubernetesEnv', contextName: '', credentialsId: 'config (KUBECONFIG)', namespace: '', restrictKubeConfigAccess: true, serverUrl: env.k8s_cluster) {
+                    sh "kubectl apply -f final.yaml"
                 }
             }
         }
@@ -155,7 +148,7 @@ pipeline {
             subject: "${env.JOB_NAME} EXECUTION COMPLETE",
             body: """Dear User, 
 
-The pipeline triggered for the service: ${env.SERVICE_NAME.split("_")[0]} ${env.SERVICE_NAME.split("_")[1]} has executed successfully.
+The pipeline triggered with the Job Name: ${env.JOB_NAME} has executed successfully.
 Below are the details of the build: 
 
 Branch Triggered:- ${env.BRANCH_NAME}
@@ -167,7 +160,7 @@ Image Created:- ${env.IMAGE_TAG}
 Please refer to the attached logs for more details
 
 Best Regards,
-<Sender Details>""",
+DevOps/SRE Team""",
             attachLog: true
         }
 
@@ -176,12 +169,12 @@ Best Regards,
             subject: "${env.JOB_NAME} FAILURE",
             body: """Dear User, 
 
-The pipeline triggered for the service: ${env.SERVICE_NAME.split("_")[0]} ${env.SERVICE_NAME.split("_")[1]} has Failed.
+The pipeline triggered with the Job Name: ${env.JOB_NAME} has Failed.
 
 Please refer to the attached logs for more details
 
 Best Regards,
-<Sender Details>""",
+DevOps/SRE Team""",
             attachLog: true
         }
     }
