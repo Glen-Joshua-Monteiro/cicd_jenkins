@@ -11,8 +11,8 @@ Authors : glenj.monteiro@gmail.com
 pipeline {
 
     parameters {
-    hidden(name: 'IMAGE_TAG', defaultValue: '', description: '')
-    hidden(name: 'RELEASE_VERSION', defaultValue: '', description: '')
+        hidden(name: 'IMAGE_TAG', defaultValue: '', description: '')
+        hidden(name: 'RELEASE_VERSION', defaultValue: '', description: '')
     }
 
     agent any
@@ -21,13 +21,18 @@ pipeline {
         // Code Checkout Stage (Branch Name can be dynamically passed too)
         stage('Git Checkout Stage') {
             steps {
+                //Clear Workspace before starting the pipeine
+                cleanWs()
+                
+                //Git Checkout
                 echo "Repository URL : "+env.REPO_URL
                 echo "Branch Chosen : "+env.BRANCH_NAME
                 checkout scmGit( branches: [[name: env.BRANCH_NAME]], 
                                              extensions: [], 
                                              userRemoteConfigs: [[credentialsId: 'git_credentials', url: env.REPO_URL]]
                 )
-            // Extract Relase Version
+                
+                // Extract Relase Version
                 script {
                     def APP_VERSION = readFile(file: 'app.version')
                     echo "App Version : "+APP_VERSION
