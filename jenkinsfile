@@ -128,11 +128,8 @@ pipeline {
                     RELEASE_NUMBER=RELEASE_NUMBER.trim()
                     
                     // Replacing Tags
-                    def layer_1 = readFile("deploy/deployment.yaml").replace('${image_path}', env.REGISTRY_URL)
-                    writeFile file: "temp.yaml", text: layer_1
-
-                    def layer_2 = readFile("temp.yaml").replace('${RELEASE_NUMBER}', RELEASE_NUMBER)
-                    writeFile file: "final.yaml", text: layer_2
+                    def layer_1 = readFile("deploy/deployment.yaml").replace('${image_path}', env.REGISTRY_URL).replace('${RELEASE_NUMBER}', RELEASE_NUMBER)
+                    writeFile file: "final.yaml", text: layer_1
                 }
                 
                 // Deploying to K8s cluster
