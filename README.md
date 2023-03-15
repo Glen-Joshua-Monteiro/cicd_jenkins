@@ -1,5 +1,5 @@
 # cicd_jenkins
-An attempt to automate the Containerization to Deployment lifecycle using Jenkins. 
+An attempt to automate the Basic Containerization to Deployment lifecycle using Jenkins. 
 This is for a setup consisting of: 
 - Jenkins > 2.17x
 - GitLab/Github for SCM and Version Control
